@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+option java_package = "dev.pawelsowa.focusgate.proto";
+option java_multiple_files = true;
+
+message AppConfig {
+  repeated DomainRule rules = 1;
+  LockState lock_state = 2;
+  VpnConfig vpn_config = 3;
+  int64 revision = 4;
+}
+
+message DomainRule {
+  string id = 1;
+  string domain = 2;
+  bool enabled = 3;
+  MatchMode match_mode = 4;
+  ScheduleMode schedule_mode = 5;
+  bytes weekly_slots = 6;
+}
+
+message LockState {
+  oneof state {
+    Empty locked = 1;
+    Empty unlocked = 2;
+    UnlockPending unlock_pending = 3;
+  }
+}
+
+message UnlockPending {
+  int64 started_elapsed_ms = 1;
+  int32 boot_count = 2;
+}
+
+message VpnConfig {
+  string upstream_dns_ip = 1;
+  int32 upstream_dns_port = 2;
+  repeated string filtered_applications = 3;
+}
+
+message Empty {}
+
+enum MatchMode {
+  MATCH_MODE_UNSPECIFIED = 0;
+  MATCH_MODE_EXACT = 1;
+  MATCH_MODE_DOMAIN_AND_SUBDOMAINS = 2;
+}
+
+enum ScheduleMode {
+  SCHEDULE_MODE_UNSPECIFIED = 0;
+  SCHEDULE_MODE_BLOCK_DURING_SELECTED_HOURS = 1;
+  SCHEDULE_MODE_ALLOW_ONLY_DURING_SELECTED_HOURS = 2;
+}

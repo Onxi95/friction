@@ -1,0 +1,181 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="dev.pawelsowa.focusgate"
+4    android:versionCode="1"
+5    android:versionName="0.1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="28"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+11-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:4:5-77
+11-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:4:22-74
+12    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+12-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:5:5-77
+12-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:5:22-74
+13    <uses-permission android:name="android.permission.INTERNET" />
+13-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:6:5-67
+13-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:6:22-64
+14
+15    <!--
+16    This manifest file is used only by Gradle to configure debug-only capabilities
+17    for React Native Apps.
+18    -->
+19    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+19-->[com.facebook.react:react-android:0.76.5] /home/paul/.gradle/caches/9.5.1/transforms/e3fae165b69df26226b3f34c0a232264/transformed/react-android-0.76.5-debug/AndroidManifest.xml:16:5-78
+19-->[com.facebook.react:react-android:0.76.5] /home/paul/.gradle/caches/9.5.1/transforms/e3fae165b69df26226b3f34c0a232264/transformed/react-android-0.76.5-debug/AndroidManifest.xml:16:22-75
+20
+21    <permission
+21-->[androidx.core:core:1.15.0] /home/paul/.gradle/caches/9.5.1/transforms/767247b67259d5a4ff55a742ca508779/transformed/core-1.15.0/AndroidManifest.xml:22:5-24:47
+22        android:name="dev.pawelsowa.focusgate.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+22-->[androidx.core:core:1.15.0] /home/paul/.gradle/caches/9.5.1/transforms/767247b67259d5a4ff55a742ca508779/transformed/core-1.15.0/AndroidManifest.xml:23:9-81
+23        android:protectionLevel="signature" />
+23-->[androidx.core:core:1.15.0] /home/paul/.gradle/caches/9.5.1/transforms/767247b67259d5a4ff55a742ca508779/transformed/core-1.15.0/AndroidManifest.xml:24:9-44
+24
+25    <uses-permission android:name="dev.pawelsowa.focusgate.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+25-->[androidx.core:core:1.15.0] /home/paul/.gradle/caches/9.5.1/transforms/767247b67259d5a4ff55a742ca508779/transformed/core-1.15.0/AndroidManifest.xml:26:5-97
+25-->[androidx.core:core:1.15.0] /home/paul/.gradle/caches/9.5.1/transforms/767247b67259d5a4ff55a742ca508779/transformed/core-1.15.0/AndroidManifest.xml:26:22-94
+26
+27    <application
+27-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:8:5-35:19
+28        android:name="dev.pawelsowa.focusgate.FocusGateApplication"
+28-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:9:9-45
+29        android:allowBackup="false"
+29-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:10:9-36
+30        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+30-->[androidx.core:core:1.15.0] /home/paul/.gradle/caches/9.5.1/transforms/767247b67259d5a4ff55a742ca508779/transformed/core-1.15.0/AndroidManifest.xml:28:18-86
+31        android:debuggable="true"
+32        android:extractNativeLibs="false"
+33        android:icon="@android:drawable/sym_def_app_icon"
+33-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:11:9-58
+34        android:label="@string/app_name"
+34-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:12:9-41
+35        android:roundIcon="@android:drawable/sym_def_app_icon"
+35-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:13:9-63
+36        android:supportsRtl="true"
+36-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:14:9-35
+37        android:theme="@style/Theme.FocusGate" >
+37-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:15:9-47
+38        <activity
+38-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:16:9-24:20
+39            android:name="dev.pawelsowa.focusgate.MainActivity"
+39-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:17:13-41
+40            android:exported="true"
+40-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:18:13-36
+41            android:launchMode="singleTask" >
+41-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:19:13-44
+42            <intent-filter>
+42-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:20:13-23:29
+43                <action android:name="android.intent.action.MAIN" />
+43-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:21:17-69
+43-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:21:25-66
+44
+45                <category android:name="android.intent.category.LAUNCHER" />
+45-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:22:17-77
+45-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:22:27-74
+46            </intent-filter>
+47        </activity>
+48
+49        <service
+49-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:25:9-34:19
+50            android:name="dev.pawelsowa.focusgate.FocusGateAndroidVpnService"
+50-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:26:13-55
+51            android:enabled="true"
+51-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:27:13-35
+52            android:exported="false"
+52-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:28:13-37
+53            android:foregroundServiceType="specialUse"
+53-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:29:13-55
+54            android:permission="android.permission.BIND_VPN_SERVICE" >
+54-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:30:13-69
+55            <intent-filter>
+55-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:31:13-33:29
+56                <action android:name="android.net.VpnService" />
+56-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:32:17-65
+56-->/home/paul/git/friction/android/app/src/main/AndroidManifest.xml:32:25-62
+57            </intent-filter>
+58        </service>
+59
+60        <activity
+60-->[com.facebook.react:react-android:0.76.5] /home/paul/.gradle/caches/9.5.1/transforms/e3fae165b69df26226b3f34c0a232264/transformed/react-android-0.76.5-debug/AndroidManifest.xml:19:9-21:40
+61            android:name="com.facebook.react.devsupport.DevSettingsActivity"
+61-->[com.facebook.react:react-android:0.76.5] /home/paul/.gradle/caches/9.5.1/transforms/e3fae165b69df26226b3f34c0a232264/transformed/react-android-0.76.5-debug/AndroidManifest.xml:20:13-77
+62            android:exported="false" />
+62-->[com.facebook.react:react-android:0.76.5] /home/paul/.gradle/caches/9.5.1/transforms/e3fae165b69df26226b3f34c0a232264/transformed/react-android-0.76.5-debug/AndroidManifest.xml:21:13-37
+63
+64        <provider
+64-->[androidx.emoji2:emoji2:1.3.0] /home/paul/.gradle/caches/9.5.1/transforms/765164a44b1c47ec3ef6036ffe54a9db/transformed/emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+65            android:name="androidx.startup.InitializationProvider"
+65-->[androidx.emoji2:emoji2:1.3.0] /home/paul/.gradle/caches/9.5.1/transforms/765164a44b1c47ec3ef6036ffe54a9db/transformed/emoji2-1.3.0/AndroidManifest.xml:25:13-67
+66            android:authorities="dev.pawelsowa.focusgate.androidx-startup"
+66-->[androidx.emoji2:emoji2:1.3.0] /home/paul/.gradle/caches/9.5.1/transforms/765164a44b1c47ec3ef6036ffe54a9db/transformed/emoji2-1.3.0/AndroidManifest.xml:26:13-68
+67            android:exported="false" >
+67-->[androidx.emoji2:emoji2:1.3.0] /home/paul/.gradle/caches/9.5.1/transforms/765164a44b1c47ec3ef6036ffe54a9db/transformed/emoji2-1.3.0/AndroidManifest.xml:27:13-37
+68            <meta-data
+68-->[androidx.emoji2:emoji2:1.3.0] /home/paul/.gradle/caches/9.5.1/transforms/765164a44b1c47ec3ef6036ffe54a9db/transformed/emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+69                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+69-->[androidx.emoji2:emoji2:1.3.0] /home/paul/.gradle/caches/9.5.1/transforms/765164a44b1c47ec3ef6036ffe54a9db/transformed/emoji2-1.3.0/AndroidManifest.xml:30:17-75
+70                android:value="androidx.startup" />
+70-->[androidx.emoji2:emoji2:1.3.0] /home/paul/.gradle/caches/9.5.1/transforms/765164a44b1c47ec3ef6036ffe54a9db/transformed/emoji2-1.3.0/AndroidManifest.xml:31:17-49
+71            <meta-data
+71-->[androidx.lifecycle:lifecycle-process:2.6.2] /home/paul/.gradle/caches/9.5.1/transforms/65fa210be7ef019a4908914a25313115/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:29:13-31:52
+72                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+72-->[androidx.lifecycle:lifecycle-process:2.6.2] /home/paul/.gradle/caches/9.5.1/transforms/65fa210be7ef019a4908914a25313115/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:30:17-78
+73                android:value="androidx.startup" />
+73-->[androidx.lifecycle:lifecycle-process:2.6.2] /home/paul/.gradle/caches/9.5.1/transforms/65fa210be7ef019a4908914a25313115/transformed/lifecycle-process-2.6.2/AndroidManifest.xml:31:17-49
+74            <meta-data
+74-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+75                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+75-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+76                android:value="androidx.startup" />
+76-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+77        </provider>
+78
+79        <receiver
+79-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+80            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+80-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+81            android:directBootAware="false"
+81-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+82            android:enabled="true"
+82-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+83            android:exported="true"
+83-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+84            android:permission="android.permission.DUMP" >
+84-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+85            <intent-filter>
+85-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+86                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+86-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+86-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+87            </intent-filter>
+88            <intent-filter>
+88-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+89                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+89-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+90            </intent-filter>
+91            <intent-filter>
+91-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+92                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+92-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+93            </intent-filter>
+94            <intent-filter>
+94-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+95                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+95-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+95-->[androidx.profileinstaller:profileinstaller:1.3.1] /home/paul/.gradle/caches/9.5.1/transforms/ebb44406787b1e379ebdfd2fba5e444f/transformed/profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+96            </intent-filter>
+97        </receiver>
+98
+99        <meta-data
+99-->[com.facebook.soloader:soloader:0.12.1] /home/paul/.gradle/caches/9.5.1/transforms/834975870180d374216db2e9699dbc04/transformed/soloader-0.12.1/AndroidManifest.xml:12:9-14:37
+100            android:name="com.facebook.soloader.enabled"
+100-->[com.facebook.soloader:soloader:0.12.1] /home/paul/.gradle/caches/9.5.1/transforms/834975870180d374216db2e9699dbc04/transformed/soloader-0.12.1/AndroidManifest.xml:13:13-57
+101            android:value="false" />
+101-->[com.facebook.soloader:soloader:0.12.1] /home/paul/.gradle/caches/9.5.1/transforms/834975870180d374216db2e9699dbc04/transformed/soloader-0.12.1/AndroidManifest.xml:14:13-34
+102    </application>
+103
+104</manifest>

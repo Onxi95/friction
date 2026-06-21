@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:ns1="http://schemas.android.com/tools">
+    <string name="app_name">FocusGate</string>
+    <string name="notification_action_open">Open</string>
+    <string name="notification_action_status">View status</string>
+    <string name="notification_title_active">FocusGate is active</string>
+    <string name="notification_title_inactive">FocusGate is inactive</string>
+    <string name="secure_dns_warning">Disable Secure DNS in Brave or configure it to use the current provider. Otherwise FocusGate may not see DNS requests and domain filtering may not work.</string>
+    <style name="Theme.FocusGate" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:statusBarColor" ns1:targetApi="l">#1E352F</item>
+        <item name="colorPrimary">#1E352F</item>
+        <item name="colorPrimaryDark">#13211D</item>
+        <item name="colorAccent">#D9A441</item>
+    </style>
+</resources>

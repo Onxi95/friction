@@ -1,0 +1,9 @@
+R_DEF: Internal format may change without notice
+local
+string app_name
+string notification_action_open
+string notification_action_status
+string notification_title_active
+string notification_title_inactive
+string secure_dns_warning
+style Theme.FocusGate
