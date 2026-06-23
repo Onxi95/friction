@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+option java_package = "dev.pawelsowa.focusgate.data.proto";
+option java_multiple_files = true;
+
+message StoredAppConfig {
+  repeated StoredDomainRule rules = 1;
+  StoredLockState lock_state = 2;
+  int64 revision = 3;
+}
+
+message StoredDomainRule {
+  string id = 1;
+  string domain = 2;
+  bool enabled = 3;
+  StoredMatchMode match_mode = 4;
+  StoredScheduleMode schedule_mode = 5;
+  bytes weekly_slots = 6;
+}
+
+message StoredLockState {
+  StoredLockMode mode = 1;
+  int64 started_elapsed_ms = 2;
+  int32 boot_count = 3;
+}
+
+enum StoredMatchMode {
+  STORED_MATCH_MODE_EXACT = 0;
+  STORED_MATCH_MODE_DOMAIN_AND_SUBDOMAINS = 1;
+}
+
+enum StoredScheduleMode {
+  STORED_SCHEDULE_MODE_BLOCK_DURING_SELECTED_HOURS = 0;
+  STORED_SCHEDULE_MODE_ALLOW_ONLY_DURING_SELECTED_HOURS = 1;
+}
+
+enum StoredLockMode {
+  STORED_LOCK_MODE_LOCKED = 0;
+  STORED_LOCK_MODE_UNLOCK_PENDING = 1;
+  STORED_LOCK_MODE_UNLOCKED = 2;
+}

@@ -14,7 +14,7 @@ Possible identifiers:
 Repository: focusgate
 Android package: dev.pawelsowa.focusgate
 VPN service: FocusGateVpnService
-Native module: FocusGateNative
+UI: Jetpack Compose
 ```
 
 ### Main goal
@@ -37,8 +37,8 @@ Build an Android application that:
 The first version should support:
 
 - Android only,
-- React Native interface,
-- Kotlin native module,
+- Jetpack Compose interface,
+- Kotlin native implementation,
 - DNS-only filtering,
 - Brave-only filtering,
 - one schedule per domain,
@@ -68,16 +68,13 @@ The first version should not include:
 ## 3. Technical architecture
 
 ```text
-React Native / TypeScript
+Jetpack Compose
 ├── domain list
 ├── domain editor
 ├── weekly schedule editor
 ├── VPN status screen
 ├── lock controls
 └── unlock countdown
-             │
-             │ Turbo Native Module
-             ▼
 Kotlin
 ├── FocusGateVpnService
 ├── DnsPacketProcessor
@@ -90,9 +87,9 @@ Kotlin
 └── UpstreamDnsClient
 ```
 
-### React Native responsibilities
+### Compose UI responsibilities
 
-React Native should handle:
+Compose should handle:
 
 - navigation,
 - domain-list interface,
@@ -117,9 +114,9 @@ Kotlin should handle:
 - persistent configuration,
 - upstream DNS forwarding,
 - blocking DNS responses,
-- operation while React Native is not running.
+- operation while the app UI is not running.
 
-React Native must not be the source of truth for:
+Compose UI must not be the source of truth for:
 
 - domain rules,
 - lock state,
@@ -131,36 +128,30 @@ React Native must not be the source of truth for:
 ## 4. Domain rule model
 
 ```ts
-export type MatchMode =
-  | 'EXACT'
-  | 'DOMAIN_AND_SUBDOMAINS';
+enum class MatchMode {
+    EXACT,
+    DOMAIN_AND_SUBDOMAINS,
+}
 
-export type ScheduleMode =
-  | 'BLOCK_DURING_SELECTED_HOURS'
-  | 'ALLOW_ONLY_DURING_SELECTED_HOURS';
+enum class ScheduleMode {
+    BLOCK_DURING_SELECTED_HOURS,
+    ALLOW_ONLY_DURING_SELECTED_HOURS,
+}
 
-export type DomainRule = {
-  id: string;
-  domain: string;
-  enabled: boolean;
-  matchMode: MatchMode;
-  scheduleMode: ScheduleMode;
-
-  /**
-   * Exactly 168 values:
-   * 7 days × 24 hours.
-   */
-  weeklySlots: boolean[];
-};
+data class DomainRule(
+    val id: String,
+    val domain: String,
+    val enabled: Boolean,
+    val matchMode: MatchMode,
+    val scheduleMode: ScheduleMode,
+    val schedule: WeeklySchedule,
+)
 ```
 
 ### Schedule indexing
 
 ```ts
-export const getSlotIndex = (
-  dayIndex: number,
-  hour: number,
-): number => dayIndex * 24 + hour;
+fun getSlotIndex(dayIndex: Int, hour: Int): Int = dayIndex * 24 + hour
 ```
 
 Day indexes:
@@ -178,14 +169,14 @@ Day indexes:
 Example:
 
 ```ts
-const facebookRule: DomainRule = {
-  id: 'facebook',
-  domain: 'facebook.com',
-  enabled: true,
-  matchMode: 'DOMAIN_AND_SUBDOMAINS',
-  scheduleMode: 'ALLOW_ONLY_DURING_SELECTED_HOURS',
-  weeklySlots: new Array(168).fill(false),
-};
+val facebookRule = DomainRule(
+    id = "facebook",
+    domain = "facebook.com",
+    enabled = true,
+    matchMode = MatchMode.DOMAIN_AND_SUBDOMAINS,
+    scheduleMode = ScheduleMode.ALLOW_ONLY_DURING_SELECTED_HOURS,
+    schedule = WeeklySchedule.empty(),
+)
 ```
 
 ---
@@ -458,18 +449,14 @@ During daylight-saving transitions, repeated instances of the same local hour sh
 ### Lock states
 
 ```ts
-export type EditLockState =
-  | {
-      type: 'UNLOCKED';
-    }
-  | {
-      type: 'LOCKED';
-    }
-  | {
-      type: 'UNLOCK_PENDING';
-      startedElapsedMs: number;
-      bootCount: number;
-    };
+sealed interface EditLockState {
+    data object Unlocked : EditLockState
+    data object Locked : EditLockState
+    data class UnlockPending(
+        val startedElapsedMs: Long,
+        val bootCount: Int,
+    ) : EditLockState
+}
 ```
 
 ### Lock flow
@@ -569,7 +556,7 @@ suspend fun updateRule(rule: DomainRule) {
 }
 ```
 
-Disabling React Native buttons is not sufficient.
+Disabling Compose buttons is not sufficient.
 
 ---
 
@@ -577,7 +564,7 @@ Disabling React Native buttons is not sufficient.
 
 Use **Proto DataStore**.
 
-Do not store authoritative configuration only in React Native `AsyncStorage`.
+Do not store authoritative configuration in UI state.
 
 Example schema:
 
@@ -615,44 +602,29 @@ Use Room later only for:
 
 ---
 
-## 11. React Native native-module API
+## 11. Native repository API
 
-```ts
-export type UnlockStatus =
-  | {
-      state: 'UNLOCKED';
-    }
-  | {
-      state: 'LOCKED';
-    }
-  | {
-      state: 'UNLOCK_PENDING';
-      remainingMs: number;
-      canConfirm: boolean;
-    };
+```kotlin
+interface FocusGateRepository {
+    fun observeConfig(): Flow<AppConfig>
+    suspend fun getConfig(): AppConfig
 
-export type VpnStatus =
-  | 'STOPPED'
-  | 'STARTING'
-  | 'RUNNING'
-  | 'ERROR';
+    suspend fun addRule(rule: DomainRule)
+    suspend fun updateRule(rule: DomainRule)
+    suspend fun deleteRule(ruleId: String)
 
-export interface FocusGateNativeModule {
-  getConfig(): Promise<AppConfigDto>;
+    suspend fun startVpn()
+    suspend fun stopVpn()
+    suspend fun getVpnStatus(): VpnStatus
 
-  addRule(rule: DomainRuleDto): Promise<void>;
-  updateRule(rule: DomainRuleDto): Promise<void>;
-  deleteRule(ruleId: string): Promise<void>;
+    suspend fun exportConfig(): String
+    suspend fun importConfig(encodedConfig: String)
 
-  startVpn(): Promise<void>;
-  stopVpn(): Promise<void>;
-  getVpnStatus(): Promise<VpnStatus>;
-
-  enableEditLock(): Promise<void>;
-  startUnlockCountdown(): Promise<UnlockStatus>;
-  getUnlockStatus(): Promise<UnlockStatus>;
-  confirmUnlock(): Promise<void>;
-  cancelUnlockCountdown(): Promise<void>;
+    suspend fun enableEditLock()
+    suspend fun startUnlockCountdown(): UnlockStatus
+    suspend fun getUnlockStatus(): UnlockStatus
+    suspend fun confirmUnlock()
+    suspend fun cancelUnlockCountdown()
 }
 ```
 
@@ -694,7 +666,7 @@ RuleEvaluator
 4. Establish the TUN interface.
 5. Start the DNS packet-processing loop.
 6. Load rules from the native repository.
-7. Report VPN status to React Native.
+7. Report VPN status to the Compose UI.
 
 ### Brave-only configuration
 
@@ -771,7 +743,7 @@ Add support for:
 - retry logic,
 - network changes.
 
-Do not process packets in JavaScript.
+Do not process packets in the UI layer.
 
 The packet-processing loop must run in Kotlin or native code.
 
@@ -918,7 +890,7 @@ fun `subdomain rule does not match suffix-only domain`() {
 }
 ```
 
-### React Native tests
+### Compose UI tests
 
 Test:
 
@@ -940,7 +912,7 @@ Verify:
 - Brave cannot access blocked domains,
 - filtering changes after an hour boundary,
 - Messenger outside Brave continues receiving notifications,
-- killing React Native does not stop filtering,
+- killing the app UI process does not stop filtering,
 - app restart restores rules,
 - device restart restores the lock,
 - changing the system clock does not shorten the countdown,
@@ -954,19 +926,17 @@ Verify:
 
 Tasks:
 
-- create a React Native Community CLI project,
-- enable TypeScript,
-- enable the New Architecture,
+- create an Android application project,
+- enable Kotlin,
+- enable Jetpack Compose,
 - add navigation,
-- create the Turbo Native Module,
 - configure Kotlin tests,
-- configure TypeScript tests,
 - configure CI.
 
 Deliverable:
 
 ```text
-React Native can call a Kotlin method and display the result.
+The Compose UI can read native repository state and display it.
 ```
 
 ### Stage 2 — Rules and storage
@@ -1029,12 +999,12 @@ Tasks:
 - implement the foreground service,
 - establish the TUN interface,
 - restrict the VPN to Brave,
-- expose VPN status to React Native.
+- expose VPN status to the Compose UI.
 
 Deliverable:
 
 ```text
-The VPN can start, stop, and continue running after the React Native UI closes.
+The VPN can start, stop, and continue running after the app UI closes.
 ```
 
 ### Stage 6 — DNS filtering
@@ -1102,7 +1072,7 @@ The MVP is complete when:
 3. Exact-domain matching works.
 4. Domain-and-subdomain matching works.
 5. Schedule boundaries take effect without restarting the VPN.
-6. Filtering continues after the React Native process is killed.
+6. Filtering continues after the app UI process is killed.
 7. Rules survive an application restart.
 8. The five-minute countdown cannot be shortened by changing system time.
 9. A device restart invalidates a pending unlock.
@@ -1121,7 +1091,7 @@ The MVP is complete when:
 ```text
 Project name: FocusGate
 Platform: Android
-UI: React Native
+UI: Jetpack Compose
 Native layer: Kotlin
 Storage: Proto DataStore
 Filtering: DNS only
