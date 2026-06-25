@@ -3,36 +3,49 @@ package dev.pawelsowa.focusgate.vpn
 data class DnsQuestion(
     val domain: String,
     val type: Int,
-    val questionEnd: Int,
+)
+
+data class DnsQuery(
+    val questions: List<DnsQuestion>,
+    val questionsEnd: Int,
 )
 
 class DnsMessageParser {
-    fun parseQuestion(message: ByteArray): DnsQuestion? {
-        if (message.size < HEADER_SIZE || readUnsignedShort(message, 4) != 1) return null
+    fun parseQuery(message: ByteArray): DnsQuery? {
+        if (message.size < HEADER_SIZE) return null
+        val questionCount = readUnsignedShort(message, 4)
+        if (questionCount < 1) return null
 
         var offset = HEADER_SIZE
-        val labels = mutableListOf<String>()
-        while (offset < message.size) {
-            val length = message[offset].toInt() and 0xff
-            offset += 1
-            if (length == 0) break
-            if (length > MAX_LABEL_LENGTH || offset + length > message.size) return null
-            labels += message.decodeToString(offset, offset + length)
-            offset += length
-        }
-        if (labels.isEmpty() || offset + QUESTION_TRAILER_SIZE > message.size) return null
+        val questions = mutableListOf<DnsQuestion>()
+        repeat(questionCount) {
+            val labels = mutableListOf<String>()
+            while (offset < message.size) {
+                val length = message[offset].toInt() and 0xff
+                offset += 1
+                if (length == 0) break
+                if (length > MAX_LABEL_LENGTH || offset + length > message.size) return null
+                labels += message.decodeToString(offset, offset + length)
+                offset += length
+            }
+            if (labels.isEmpty() || offset + QUESTION_TRAILER_SIZE > message.size) return null
 
-        val type = readUnsignedShort(message, offset)
-        val questionEnd = offset + QUESTION_TRAILER_SIZE
-        return DnsQuestion(
-            domain = labels.joinToString(".").lowercase(),
-            type = type,
-            questionEnd = questionEnd,
+            val type = readUnsignedShort(message, offset)
+            offset += QUESTION_TRAILER_SIZE
+            questions += DnsQuestion(
+                domain = labels.joinToString(".").lowercase(),
+                type = type,
+            )
+        }
+
+        return DnsQuery(
+            questions = questions,
+            questionsEnd = offset,
         )
     }
 
-    fun nxdomain(query: ByteArray, question: DnsQuestion): ByteArray {
-        val response = query.copyOf(question.questionEnd)
+    fun nxdomain(query: ByteArray, parsed: DnsQuery): ByteArray {
+        val response = query.copyOf(parsed.questionsEnd)
         val requestFlags = readUnsignedShort(query, 2)
         writeUnsignedShort(response, 2, requestFlags or RESPONSE_FLAG or NXDOMAIN_CODE)
         writeUnsignedShort(response, 6, 0)

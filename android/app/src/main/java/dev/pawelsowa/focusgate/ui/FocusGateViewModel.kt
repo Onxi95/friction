@@ -13,6 +13,7 @@ import dev.pawelsowa.focusgate.domain.model.FocusGateException
 import dev.pawelsowa.focusgate.domain.model.MatchMode
 import dev.pawelsowa.focusgate.domain.model.ScheduleMode
 import dev.pawelsowa.focusgate.domain.model.UnlockStatus
+import dev.pawelsowa.focusgate.domain.model.VpnStatus
 import dev.pawelsowa.focusgate.domain.model.WeeklySchedule
 import dev.pawelsowa.focusgate.domain.repository.FocusGateRepository
 import dev.pawelsowa.focusgate.domain.usecase.ObserveDashboardStateUseCase
@@ -67,13 +68,21 @@ data class DomainEditorState(
 )
 
 data class DiagnosticsState(
-    val braveInstalled: Boolean = false,
+    val supportedBrowserInstalled: Boolean = false,
+    val filteredBrowsers: String = "None",
     val vpnFailure: String = "None",
     val observedQueries: Long = 0,
     val blockedQueries: Long = 0,
     val forwardedQueries: Long = 0,
     val lastDomain: String = "None",
     val lastBlockedDomain: String = "None",
+)
+
+data class BackupState(
+    val exportedConfig: String = "",
+    val importText: String = "",
+    val message: String? = null,
+    val error: String? = null,
 )
 
 sealed interface FocusGateEvent {
@@ -83,17 +92,23 @@ sealed interface FocusGateEvent {
 class FocusGateViewModel(
     private val repository: FocusGateRepository,
     observeDashboardState: ObserveDashboardStateUseCase,
+    private val errorMapper: FocusGateErrorMapper = FocusGateErrorMapper(),
 ) : ViewModel() {
     private val evaluator = RuleEvaluator()
     private val summary = ScheduleSummary()
     private val mutableEditorState = MutableStateFlow(DomainEditorState())
     private val mutableEvents = MutableSharedFlow<FocusGateEvent>()
+    private val vpnActionError = MutableStateFlow<String?>(null)
+    private val mutableBackupState = MutableStateFlow(BackupState())
 
     val editorState: StateFlow<DomainEditorState> = mutableEditorState.asStateFlow()
     val events: SharedFlow<FocusGateEvent> = mutableEvents.asSharedFlow()
+    val backupState: StateFlow<BackupState> = mutableBackupState.asStateFlow()
 
     val dashboardState: StateFlow<DashboardState> =
-        observeDashboardState()
+        combine(observeDashboardState(), vpnActionError) { state, error ->
+            state.copy(warning = error ?: state.warning)
+        }
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5_000),
@@ -108,6 +123,7 @@ class FocusGateViewModel(
                         id = rule.id,
                         domain = rule.domain,
                         status = when {
+                            config.vpnStatus != VpnStatus.RUNNING -> "VPN inactive"
                             !rule.enabled -> "Rule disabled"
                             evaluator.shouldBlock(rule, ZonedDateTime.now()) ->
                                 "Blocked now · ${summary.format(rule.schedule, rule.scheduleMode)}"
@@ -137,12 +153,13 @@ class FocusGateViewModel(
 
     val diagnosticsState: StateFlow<DiagnosticsState> =
         combine(
-            VpnRuntime.braveInstalled,
+            VpnRuntime.filteredBrowserPackages,
             VpnRuntime.failureReason,
             VpnRuntime.dnsDiagnostics,
-        ) { braveInstalled, failureReason, dns ->
+        ) { filteredPackages, failureReason, dns ->
             DiagnosticsState(
-                braveInstalled = braveInstalled,
+                supportedBrowserInstalled = filteredPackages.isNotEmpty(),
+                filteredBrowsers = filteredPackages.joinToString().ifBlank { "None" },
                 vpnFailure = failureReason.message(),
                 observedQueries = dns.observedQueries,
                 blockedQueries = dns.blockedQueries,
@@ -169,13 +186,20 @@ class FocusGateViewModel(
 
     fun startVpn() {
         viewModelScope.launch {
+            vpnActionError.value = null
             repository.startVpn()
         }
     }
 
-    fun stopVpn() {
+    fun stopVpn(onStopped: () -> Unit = {}) {
         viewModelScope.launch {
-            repository.stopVpn()
+            try {
+                repository.stopVpn()
+                vpnActionError.value = null
+                onStopped()
+            } catch (exception: FocusGateException) {
+                vpnActionError.value = errorMapper.message(exception)
+            }
         }
     }
 
@@ -204,7 +228,7 @@ class FocusGateViewModel(
                 repository.updateRule(rule.copy(enabled = enabled))
             } catch (exception: FocusGateException) {
                 mutableEditorState.value =
-                    mutableEditorState.value.copy(error = exception.message)
+                    mutableEditorState.value.copy(error = errorMapper.message(exception))
             }
         }
     }
@@ -215,7 +239,7 @@ class FocusGateViewModel(
                 repository.deleteRule(ruleId)
             } catch (exception: FocusGateException) {
                 mutableEditorState.value =
-                    mutableEditorState.value.copy(error = exception.message)
+                    mutableEditorState.value.copy(error = errorMapper.message(exception))
             }
         }
     }
@@ -298,7 +322,7 @@ class FocusGateViewModel(
             } catch (exception: FocusGateException) {
                 mutableEditorState.value = state.copy(
                     saving = false,
-                    error = exception.message,
+                    error = errorMapper.message(exception),
                 )
             }
         }
@@ -318,7 +342,49 @@ class FocusGateViewModel(
                 repository.confirmUnlock()
             } catch (exception: FocusGateException) {
                 mutableEditorState.value =
-                    mutableEditorState.value.copy(error = exception.message)
+                    mutableEditorState.value.copy(error = errorMapper.message(exception))
+            }
+        }
+    }
+
+    fun setImportText(value: String) {
+        mutableBackupState.value = mutableBackupState.value.copy(
+            importText = value,
+            message = null,
+            error = null,
+        )
+    }
+
+    fun exportConfig() {
+        viewModelScope.launch {
+            mutableBackupState.value = try {
+                mutableBackupState.value.copy(
+                    exportedConfig = repository.exportConfig(),
+                    message = "Configuration exported",
+                    error = null,
+                )
+            } catch (exception: FocusGateException) {
+                mutableBackupState.value.copy(
+                    message = null,
+                    error = errorMapper.message(exception),
+                )
+            }
+        }
+    }
+
+    fun importConfig() {
+        viewModelScope.launch {
+            try {
+                repository.importConfig(mutableBackupState.value.importText)
+                mutableBackupState.value = mutableBackupState.value.copy(
+                    message = "Configuration imported and editing locked",
+                    error = null,
+                )
+            } catch (exception: FocusGateException) {
+                mutableBackupState.value = mutableBackupState.value.copy(
+                    message = null,
+                    error = errorMapper.message(exception),
+                )
             }
         }
     }
@@ -328,9 +394,11 @@ private fun VpnFailureReason.message(): String =
     when (this) {
         VpnFailureReason.NONE -> "None"
         VpnFailureReason.VPN_PERMISSION_DENIED -> "VPN permission denied"
-        VpnFailureReason.BRAVE_NOT_INSTALLED -> "Brave is not installed"
+        VpnFailureReason.NO_SUPPORTED_BROWSER_INSTALLED ->
+            "No supported browser is installed"
         VpnFailureReason.NETWORK_PERMISSION_MISSING -> "Network state permission missing"
         VpnFailureReason.TUN_START_FAILED -> "VPN interface start failed"
+        VpnFailureReason.UPSTREAM_DNS_UNAVAILABLE -> "Upstream DNS unavailable"
     }
 
 fun focusGateViewModelFactory(
@@ -341,6 +409,7 @@ fun focusGateViewModelFactory(
             FocusGateViewModel(
                 repository = repository,
                 observeDashboardState = ObserveDashboardStateUseCase(repository),
+                errorMapper = FocusGateErrorMapper(),
             )
         }
     }

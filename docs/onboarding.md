@@ -5,7 +5,7 @@
 3. Add domains and schedules.
 4. Lock editing.
 5. Start VPN and approve Android VPN permission.
-6. In Brave, disable Secure DNS or configure it to use the current provider.
+6. In Brave, Chrome, or Vanadium, disable Secure DNS or configure it to use the current provider.
 7. Optional: enable Always-on VPN in Android settings.
 
 Always-on VPN path:

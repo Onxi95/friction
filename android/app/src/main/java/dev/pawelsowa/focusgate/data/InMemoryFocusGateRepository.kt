@@ -1,5 +1,6 @@
 package dev.pawelsowa.focusgate.data
 
+import dev.pawelsowa.focusgate.domain.DomainNormalizer
 import dev.pawelsowa.focusgate.domain.model.AppConfig
 import dev.pawelsowa.focusgate.domain.model.DomainRule
 import dev.pawelsowa.focusgate.domain.model.FocusGateErrorCode
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.update
 
 class InMemoryFocusGateRepository(
     initiallyUnlocked: Boolean = false,
+    private val normalizer: DomainNormalizer = DomainNormalizer(),
 ) : FocusGateRepository {
     private val state = MutableStateFlow(sampleConfig(initiallyUnlocked))
 
@@ -23,17 +25,21 @@ class InMemoryFocusGateRepository(
 
     override suspend fun addRule(rule: DomainRule) {
         requireUnlocked()
-        state.update {
-            it.copy(rules = it.rules + rule, unlockStatus = UnlockStatus.Locked)
+        state.update { config ->
+            config.copy(
+                rules = config.rules + validateRule(rule, config, ignoredRuleId = null),
+                unlockStatus = UnlockStatus.Locked,
+            )
         }
     }
 
     override suspend fun updateRule(rule: DomainRule) {
         requireUnlocked()
         state.update { config ->
+            val validated = validateRule(rule, config, ignoredRuleId = rule.id)
             config.copy(
                 rules = config.rules.map { existing ->
-                    if (existing.id == rule.id) rule else existing
+                    if (existing.id == rule.id) validated else existing
                 },
                 unlockStatus = UnlockStatus.Locked,
             )
@@ -55,7 +61,8 @@ class InMemoryFocusGateRepository(
     }
 
     override suspend fun stopVpn() {
-        state.update { it.copy(vpnStatus = VpnStatus.STOPPED) }
+        requireUnlocked()
+        state.update { it.copy(vpnStatus = VpnStatus.STOPPED, unlockStatus = UnlockStatus.Locked) }
     }
 
     override suspend fun getVpnStatus(): VpnStatus = state.value.vpnStatus
@@ -97,6 +104,26 @@ class InMemoryFocusGateRepository(
                 "Editing is locked",
             )
         }
+    }
+
+    private fun validateRule(
+        rule: DomainRule,
+        config: AppConfig,
+        ignoredRuleId: String?,
+    ): DomainRule {
+        val normalized = normalizer.normalize(rule.domain).getOrElse { cause ->
+            throw FocusGateException(
+                FocusGateErrorCode.INVALID_DOMAIN,
+                cause.message ?: "Invalid domain",
+            )
+        }
+        if (config.rules.any { it.id != ignoredRuleId && it.domain == normalized }) {
+            throw FocusGateException(
+                FocusGateErrorCode.DUPLICATE_DOMAIN,
+                "Domain already exists",
+            )
+        }
+        return rule.copy(domain = normalized)
     }
 
     private fun sampleConfig(initiallyUnlocked: Boolean): AppConfig =

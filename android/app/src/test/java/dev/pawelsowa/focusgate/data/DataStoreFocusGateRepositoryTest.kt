@@ -1,18 +1,24 @@
 package dev.pawelsowa.focusgate.data
 
 import androidx.datastore.core.DataStoreFactory
+import com.google.protobuf.ByteString
+import dev.pawelsowa.focusgate.data.proto.StoredAppConfig
+import dev.pawelsowa.focusgate.data.proto.StoredDomainRule
 import dev.pawelsowa.focusgate.domain.model.DomainRule
 import dev.pawelsowa.focusgate.domain.model.FocusGateErrorCode
 import dev.pawelsowa.focusgate.domain.model.FocusGateException
 import dev.pawelsowa.focusgate.domain.model.MatchMode
 import dev.pawelsowa.focusgate.domain.model.ScheduleMode
 import dev.pawelsowa.focusgate.domain.model.UnlockStatus
+import dev.pawelsowa.focusgate.domain.model.VpnStatus
 import dev.pawelsowa.focusgate.domain.model.WeeklySchedule
 import java.io.File
+import java.util.Base64
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -63,6 +69,19 @@ class DataStoreFocusGateRepositoryTest {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         val second = createRepository(file)
         assertEquals("example.com", second.getConfig().rules.single().domain)
+    }
+
+    @Test
+    fun `vpn status follows injected runtime state`() = runTest {
+        val vpnStatus = MutableStateFlow(VpnStatus.STOPPED)
+        val repository = createRepository(
+            file = temporaryFolder.root.resolve("vpn-status.pb"),
+            vpnStatus = vpnStatus,
+        )
+
+        vpnStatus.value = VpnStatus.RUNNING
+
+        assertEquals(VpnStatus.RUNNING, repository.getConfig().vpnStatus)
     }
 
     @Test
@@ -133,6 +152,18 @@ class DataStoreFocusGateRepositoryTest {
     }
 
     @Test
+    fun `system clock change does not shorten countdown`() = runTest {
+        repository.enableEditLock()
+        repository.startUnlockCountdown()
+        timeSource.wallClockMs += StoredConfigMapper.UNLOCK_DELAY_MS
+
+        assertTrue(repository.getUnlockStatus() is UnlockStatus.UnlockPending)
+        val error = expectFocusGateError(repository::confirmUnlock)
+
+        assertEquals(FocusGateErrorCode.COUNTDOWN_STILL_ACTIVE, error.code)
+    }
+
+    @Test
     fun `device restart invalidates pending countdown`() = runTest {
         repository.enableEditLock()
         repository.startUnlockCountdown()
@@ -157,6 +188,24 @@ class DataStoreFocusGateRepositoryTest {
     }
 
     @Test
+    fun `backup import normalizes stored domains`() = runTest {
+        val backup = StoredAppConfig.newBuilder()
+            .addRules(
+                StoredDomainRule.newBuilder()
+                    .setId("example")
+                    .setDomain(" Example.COM. ")
+                    .setWeeklySlots(ByteString.copyFrom(ByteArray(WeeklySchedule.SLOT_COUNT / Byte.SIZE_BITS))),
+            )
+            .build()
+            .toByteArray()
+            .let(Base64.getEncoder()::encodeToString)
+
+        repository.importConfig(backup)
+
+        assertEquals("example.com", repository.getConfig().rules.single().domain)
+    }
+
+    @Test
     fun `locked repository rejects backup import`() = runTest {
         val exported = repository.exportConfig()
         repository.enableEditLock()
@@ -166,6 +215,47 @@ class DataStoreFocusGateRepositoryTest {
         }
 
         assertEquals(FocusGateErrorCode.EDITING_LOCKED, error.code)
+    }
+
+    @Test
+    fun `backup import rejects invalid schedule length`() = runTest {
+        val invalidBackup = StoredAppConfig.newBuilder()
+            .addRules(
+                StoredDomainRule.newBuilder()
+                    .setId("broken")
+                    .setDomain("example.com")
+                    .setWeeklySlots(ByteString.copyFrom(byteArrayOf(1))),
+            )
+            .build()
+            .toByteArray()
+            .let(Base64.getEncoder()::encodeToString)
+
+        val error = expectFocusGateError {
+            repository.importConfig(invalidBackup)
+        }
+
+        assertEquals(FocusGateErrorCode.INVALID_SCHEDULE, error.code)
+    }
+
+    @Test
+    fun `locked repository rejects stopping vpn`() = runTest {
+        repository.enableEditLock()
+
+        val error = expectFocusGateError {
+            repository.stopVpn()
+        }
+
+        assertEquals(FocusGateErrorCode.EDITING_LOCKED, error.code)
+    }
+
+    @Test
+    fun `stopping vpn relocks editing`() = runTest {
+        repository.startVpn()
+        unlock()
+
+        repository.stopVpn()
+
+        assertEquals(UnlockStatus.Locked, repository.getUnlockStatus())
     }
 
     private suspend fun unlock() {
@@ -185,7 +275,10 @@ class DataStoreFocusGateRepositoryTest {
             exception
         }
 
-    private fun createRepository(file: File): DataStoreFocusGateRepository =
+    private fun createRepository(
+        file: File,
+        vpnStatus: MutableStateFlow<VpnStatus> = MutableStateFlow(VpnStatus.STOPPED),
+    ): DataStoreFocusGateRepository =
         DataStoreFocusGateRepository(
             dataStore = DataStoreFactory.create(
                 serializer = FocusGateConfigSerializer,
@@ -193,6 +286,7 @@ class DataStoreFocusGateRepositoryTest {
                 produceFile = { file },
             ),
             timeSource = timeSource,
+            vpnStatus = vpnStatus,
         )
 
     private fun rule(
@@ -210,6 +304,7 @@ class DataStoreFocusGateRepositoryTest {
 
     private class FakeLockTimeSource : LockTimeSource {
         var elapsedMs = 1_000L
+        var wallClockMs = 1_000L
         var boot = 10
 
         override fun elapsedRealtime(): Long = elapsedMs

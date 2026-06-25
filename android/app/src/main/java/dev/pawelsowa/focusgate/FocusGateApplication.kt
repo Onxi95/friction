@@ -20,7 +20,7 @@ class FocusGateApplication : Application() {
                 timeSource = AndroidLockTimeSource(contentResolver),
                 vpnStatus = VpnRuntime.status,
             )
-        VpnRuntime.refreshBraveInstalled(packageManager)
+        VpnRuntime.refreshBrowserAvailability(packageManager)
     }
 }
 

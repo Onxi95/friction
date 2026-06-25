@@ -12,6 +12,7 @@ import dev.pawelsowa.focusgate.domain.model.FocusGateErrorCode
 import dev.pawelsowa.focusgate.domain.model.FocusGateException
 import dev.pawelsowa.focusgate.domain.model.UnlockStatus
 import dev.pawelsowa.focusgate.domain.model.VpnStatus
+import dev.pawelsowa.focusgate.domain.model.WeeklySchedule
 import dev.pawelsowa.focusgate.domain.repository.FocusGateRepository
 import java.util.Base64
 import kotlinx.coroutines.flow.Flow
@@ -77,6 +78,10 @@ class DataStoreFocusGateRepository(
     }
 
     override suspend fun stopVpn() {
+        dataStore.updateData { config ->
+            requireUnlocked(config)
+            config.toBuilder().setLockState(lockedState()).build()
+        }
         vpnStatus.value = VpnStatus.STOPPED
     }
 
@@ -99,10 +104,10 @@ class DataStoreFocusGateRepository(
                 "Backup is not a valid FocusGate export",
             )
         }
-        validateImportedConfig(imported)
+        val validated = validateImportedConfig(imported)
         dataStore.updateData { current ->
             requireUnlocked(current)
-            imported.toBuilder()
+            validated.toBuilder()
                 .setLockState(lockedState())
                 .setRevision(current.revision + 1)
                 .build()
@@ -203,9 +208,15 @@ class DataStoreFocusGateRepository(
         }
     }
 
-    private fun validateImportedConfig(config: StoredAppConfig) {
+    private fun validateImportedConfig(config: StoredAppConfig): StoredAppConfig {
         val domains = mutableSetOf<String>()
-        config.rulesList.forEach { rule ->
+        val normalizedRules = config.rulesList.map { rule ->
+            if (rule.weeklySlots.size() != SCHEDULE_BYTES) {
+                throw FocusGateException(
+                    FocusGateErrorCode.INVALID_SCHEDULE,
+                    "Backup contains an invalid weekly schedule",
+                )
+            }
             val normalized = normalizer.normalize(rule.domain).getOrElse { cause ->
                 throw FocusGateException(
                     FocusGateErrorCode.INVALID_DOMAIN,
@@ -218,12 +229,22 @@ class DataStoreFocusGateRepository(
                     "Backup contains duplicate domains",
                 )
             }
+            rule.toBuilder().setDomain(normalized).build()
         }
-        mapper.toDomain(config, vpnStatus.value)
+        val normalizedConfig = config.toBuilder()
+            .clearRules()
+            .addAllRules(normalizedRules)
+            .build()
+        mapper.toDomain(normalizedConfig, vpnStatus.value)
+        return normalizedConfig
     }
 
     private fun lockedState(): StoredLockState =
         StoredLockState.newBuilder()
             .setMode(StoredLockMode.STORED_LOCK_MODE_LOCKED)
             .build()
+
+    private companion object {
+        const val SCHEDULE_BYTES = WeeklySchedule.SLOT_COUNT / Byte.SIZE_BITS
+    }
 }

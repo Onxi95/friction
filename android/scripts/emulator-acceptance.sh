@@ -49,6 +49,8 @@ if [[ "$ui_xml" != *"Active"* && "$ui_xml" != *"Error"* && "$ui_xml" != *"Starti
 fi
 
 adb shell dumpsys package "$package_name" | grep -q "android.permission.ACCESS_NETWORK_STATE: granted=true"
+adb shell dumpsys package "$package_name" | grep -q "android.permission.RECEIVE_BOOT_COMPLETED: granted=true"
 adb shell dumpsys package "$package_name" | grep -q "android.net.VpnService"
+adb shell dumpsys package "$package_name" | grep -q "BootCompletedReceiver"
 
 echo "Emulator acceptance passed"

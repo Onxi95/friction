@@ -60,6 +60,7 @@ import kotlin.math.floor
 private enum class FocusGateRoute(val label: String) {
     Dashboard("Status"),
     Domains("Domains"),
+    Guide("Guide"),
     Diagnostics("Diagnostics"),
     Lock("Lock"),
     Editor("Editor"),
@@ -70,7 +71,7 @@ private enum class FocusGateRoute(val label: String) {
 fun FocusGateApp(
     viewModel: FocusGateViewModel,
     onStartVpn: () -> Unit = viewModel::startVpn,
-    onStopVpn: () -> Unit = viewModel::stopVpn,
+    onStopVpn: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -136,8 +137,9 @@ fun FocusGateApp(
                 DashboardScreen(
                     viewModel = viewModel,
                     onViewDomains = { navController.navigate(FocusGateRoute.Domains.name) },
+                    onOpenGuide = { navController.navigate(FocusGateRoute.Guide.name) },
                     onStartVpn = onStartVpn,
-                    onStopVpn = onStopVpn,
+                    onStopVpn = { viewModel.stopVpn(onStopVpn) },
                 )
             }
             composable(FocusGateRoute.Domains.name) {
@@ -159,6 +161,12 @@ fun FocusGateApp(
             composable(FocusGateRoute.Diagnostics.name) {
                 DiagnosticsScreen(viewModel)
             }
+            composable(FocusGateRoute.Guide.name) {
+                GuideScreen(
+                    onViewDomains = { navController.navigate(FocusGateRoute.Domains.name) },
+                    onOpenDiagnostics = { navController.navigate(FocusGateRoute.Diagnostics.name) },
+                )
+            }
             composable(FocusGateRoute.Editor.name) {
                 DomainEditorScreen(
                     viewModel = viewModel,
@@ -173,10 +181,24 @@ fun FocusGateApp(
 private fun DashboardScreen(
     viewModel: FocusGateViewModel,
     onViewDomains: () -> Unit,
+    onOpenGuide: () -> Unit,
     onStartVpn: () -> Unit,
     onStopVpn: () -> Unit,
 ) {
     val state by viewModel.dashboardState.collectAsStateWithLifecycle()
+    val diagnostics by viewModel.diagnosticsState.collectAsStateWithLifecycle()
+    val unlockStatus by viewModel.unlockStatus.collectAsStateWithLifecycle()
+    val editingEnabled = unlockStatus == UnlockStatus.Unlocked
+    val secureDnsWarning =
+        if (
+            state.vpnStatus == "Active" &&
+            diagnostics.filteredBrowsers != "None" &&
+            diagnostics.observedQueries == 0L
+        ) {
+            "No DNS traffic seen. Browser secure DNS or cached DNS may bypass FocusGate."
+        } else {
+            null
+        }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -202,12 +224,95 @@ private fun DashboardScreen(
                 )
             }
         }
+        secureDnsWarning?.let { warning ->
+            item {
+                Text(
+                    text = warning,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onStartVpn) { Text("Start VPN") }
-                OutlinedButton(onClick = onStopVpn) { Text("Stop VPN") }
+                OutlinedButton(
+                    onClick = onStopVpn,
+                    enabled = editingEnabled,
+                ) {
+                    Text("Stop VPN")
+                }
                 OutlinedButton(onClick = onViewDomains) { Text("View domains") }
+                OutlinedButton(onClick = onOpenGuide) { Text("Setup guide") }
             }
+        }
+    }
+}
+
+@Composable
+private fun GuideScreen(
+    onViewDomains: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item { Text("Setup guide", style = MaterialTheme.typography.headlineSmall) }
+        item {
+            GuideCard(
+                title = "1. Add domains",
+                body = "Use Domains to add sites such as facebook.com. Choose domain and subdomains to include m.facebook.com and www.facebook.com.",
+                action = {
+                    Button(onClick = onViewDomains) { Text("Open domains") }
+                },
+            )
+        }
+        item {
+            GuideCard(
+                title = "2. Pick schedule semantics",
+                body = "Allow only during selected hours means selected cells are access windows. Empty schedule blocks all week. Block during selected hours means selected cells are blocked windows.",
+            )
+        }
+        item {
+            GuideCard(
+                title = "3. Configure browser DNS",
+                body = "FocusGate filters installed Brave, Chrome, and Vanadium browsers. Disable browser Secure DNS so DNS requests reach the Android VPN.",
+            )
+        }
+        item {
+            GuideCard(
+                title = "4. Start VPN and verify",
+                body = "Start VPN, open a blocked domain in a filtered browser, then check Diagnostics. Blocked DNS queries and Last blocked domain should update.",
+                action = {
+                    Button(onClick = onOpenDiagnostics) { Text("Open diagnostics") }
+                },
+            )
+        }
+        item {
+            GuideCard(
+                title = "5. Lock editing",
+                body = "Saving a rule locks editing. Unlocking requires the full five-minute monotonic countdown; restart cancels a pending unlock.",
+            )
+        }
+    }
+}
+
+@Composable
+private fun GuideCard(
+    title: String,
+    body: String,
+    action: @Composable (() -> Unit)? = null,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(body, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            action?.invoke()
         }
     }
 }
@@ -296,6 +401,8 @@ private fun DomainEditorScreen(
     onCancel: () -> Unit,
 ) {
     val state by viewModel.editorState.collectAsStateWithLifecycle()
+    val unlockStatus by viewModel.unlockStatus.collectAsStateWithLifecycle()
+    val editingEnabled = unlockStatus == UnlockStatus.Unlocked
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -310,6 +417,7 @@ private fun DomainEditorScreen(
                 label = { Text("Domain") },
                 placeholder = { Text("example.com") },
                 singleLine = true,
+                enabled = editingEnabled,
                 isError = state.error != null,
                 supportingText = { state.error?.let { Text(it) } },
             )
@@ -323,6 +431,7 @@ private fun DomainEditorScreen(
                 ),
                 selected = state.matchMode,
                 onSelected = viewModel::setMatchMode,
+                enabled = editingEnabled,
             )
         }
         item {
@@ -336,6 +445,16 @@ private fun DomainEditorScreen(
                 ),
                 selected = state.scheduleMode,
                 onSelected = viewModel::setScheduleMode,
+                enabled = editingEnabled,
+            )
+            Text(
+                text = if (state.scheduleMode == ScheduleMode.BLOCK_DURING_SELECTED_HOURS) {
+                    "Checked hours are blocked. Select every hour to block the whole week."
+                } else {
+                    "Checked hours are allowed. Clear every hour to block the whole week."
+                },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
             )
         }
         item {
@@ -346,6 +465,7 @@ private fun DomainEditorScreen(
                     onSlot = viewModel::setScheduleSlot,
                     onDay = viewModel::toggleScheduleDay,
                     onHour = viewModel::toggleScheduleHour,
+                    enabled = editingEnabled,
                 )
             }
         }
@@ -367,6 +487,7 @@ private fun DomainEditorScreen(
                             FilterChip(
                                 selected = false,
                                 onClick = { viewModel.applySchedulePreset(preset) },
+                                enabled = editingEnabled,
                                 label = { Text(preset) },
                             )
                         }
@@ -387,7 +508,7 @@ private fun DomainEditorScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
                     onClick = viewModel::saveRule,
-                    enabled = !state.saving && state.domain.isNotBlank(),
+                    enabled = editingEnabled && !state.saving && state.domain.isNotBlank(),
                 ) {
                     Text(if (state.saving) "Saving..." else "Save and lock")
                 }
@@ -403,6 +524,7 @@ private fun <T> ChoiceSection(
     options: List<Pair<T, String>>,
     selected: T,
     onSelected: (T) -> Unit,
+    enabled: Boolean,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium)
@@ -410,6 +532,7 @@ private fun <T> ChoiceSection(
             FilterChip(
                 selected = selected == value,
                 onClick = { onSelected(value) },
+                enabled = enabled,
                 label = { Text(label) },
             )
         }
@@ -422,6 +545,7 @@ private fun ScheduleGrid(
     onSlot: (Int, Int, Boolean) -> Unit,
     onDay: (Int) -> Unit,
     onHour: (Int) -> Unit,
+    enabled: Boolean,
 ) {
     val scroll = rememberScrollState()
     Column(
@@ -435,7 +559,7 @@ private fun ScheduleGrid(
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .clickable { onHour(hour) },
+                        .clickable(enabled = enabled) { onHour(hour) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(hour.toString().padStart(2, '0'), style = MaterialTheme.typography.labelSmall)
@@ -448,7 +572,7 @@ private fun ScheduleGrid(
                     modifier = Modifier
                         .width(48.dp)
                         .height(32.dp)
-                        .clickable { onDay(day) },
+                        .clickable(enabled = enabled) { onDay(day) },
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     Text(ScheduleSummary.DAY_NAMES[day], style = MaterialTheme.typography.labelMedium)
@@ -459,6 +583,7 @@ private fun ScheduleGrid(
                         hour = hour,
                         schedule = schedule,
                         onSlot = onSlot,
+                        enabled = enabled,
                     )
                 }
             }
@@ -472,6 +597,7 @@ private fun ScheduleCell(
     hour: Int,
     schedule: WeeklySchedule,
     onSlot: (Int, Int, Boolean) -> Unit,
+    enabled: Boolean,
 ) {
     val selected = schedule[day, hour]
     val cellPx = with(LocalDensity.current) { 32.dp.toPx() }
@@ -484,8 +610,9 @@ private fun ScheduleCell(
             .padding(1.dp)
             .background(if (selected) selectedColor else unselectedColor)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant)
-            .clickable { onSlot(day, hour, !selected) }
-            .pointerInput(day, hour, selected) {
+            .clickable(enabled = enabled) { onSlot(day, hour, !selected) }
+            .pointerInput(day, hour, selected, enabled) {
+                if (!enabled) return@pointerInput
                 var dragStart = Offset.Zero
                 val dragValue = !selected
                 detectDragGestures(
@@ -511,7 +638,10 @@ private fun ScheduleCell(
 private fun DiagnosticsScreen(viewModel: FocusGateViewModel) {
     val state by viewModel.dashboardState.collectAsStateWithLifecycle()
     val diagnostics by viewModel.diagnosticsState.collectAsStateWithLifecycle()
+    val backup by viewModel.backupState.collectAsStateWithLifecycle()
+    val unlockStatus by viewModel.unlockStatus.collectAsStateWithLifecycle()
     val vpnActive = state.vpnStatus == "Active"
+    val editingEnabled = unlockStatus == UnlockStatus.Unlocked
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -520,7 +650,13 @@ private fun DiagnosticsScreen(viewModel: FocusGateViewModel) {
     ) {
         item { Text("Diagnostics", style = MaterialTheme.typography.headlineSmall) }
         item { StatusCard("VPN active", if (vpnActive) "Yes" else "No") }
-        item { StatusCard("Brave installed", if (diagnostics.braveInstalled) "Yes" else "No") }
+        item {
+            StatusCard(
+                "Supported browser installed",
+                if (diagnostics.supportedBrowserInstalled) "Yes" else "No",
+            )
+        }
+        item { StatusCard("Filtered browsers", diagnostics.filteredBrowsers) }
         item { StatusCard("VPN failure", diagnostics.vpnFailure) }
         item {
             StatusCard(
@@ -530,7 +666,7 @@ private fun DiagnosticsScreen(viewModel: FocusGateViewModel) {
         }
         item {
             StatusCard(
-                "Brave filtering test",
+                "Browser filtering test",
                 if (diagnostics.blockedQueries > 0) "Passed" else "No blocked DNS query seen",
             )
         }
@@ -545,9 +681,58 @@ private fun DiagnosticsScreen(viewModel: FocusGateViewModel) {
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("Brave Secure DNS", style = MaterialTheme.typography.titleMedium)
+                    Text("Configuration backup", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Disable Secure DNS in Brave or configure it to use the current provider. Otherwise FocusGate may not see DNS requests.",
+                        "Export creates a native backup string. Import requires unlocked editing and locks editing after applying.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = viewModel::exportConfig) { Text("Export configuration") }
+                    if (backup.exportedConfig.isNotBlank()) {
+                        OutlinedTextField(
+                            value = backup.exportedConfig,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Exported configuration") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    OutlinedTextField(
+                        value = backup.importText,
+                        onValueChange = viewModel::setImportText,
+                        label = { Text("Import configuration") },
+                        enabled = editingEnabled,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Button(
+                        onClick = viewModel::importConfig,
+                        enabled = editingEnabled && backup.importText.isNotBlank(),
+                    ) {
+                        Text("Import configuration")
+                    }
+                    if (!editingEnabled) {
+                        Text(
+                            "Unlock editing to import configuration.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    backup.message?.let {
+                        Text(it, color = MaterialTheme.colorScheme.primary)
+                    }
+                    backup.error?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+        item {
+            Card {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Browser Secure DNS", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Disable Secure DNS in filtered browsers or configure it to use the current provider. Otherwise FocusGate may not see DNS requests.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }

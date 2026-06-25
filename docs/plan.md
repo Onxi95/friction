@@ -24,7 +24,7 @@ Build an Android application that:
 - blocks selected domains,
 - supports a separate weekly schedule for every domain,
 - allows hourly configuration for every day of the week,
-- filters Brave through Android `VpnService`,
+- filters supported browsers through Android `VpnService`,
 - works without root access,
 - works without a remote server,
 - stores configuration in the native Android layer,
@@ -40,7 +40,7 @@ The first version should support:
 - Jetpack Compose interface,
 - Kotlin native implementation,
 - DNS-only filtering,
-- Brave-only filtering,
+- browser allowlist filtering for Brave, Chrome, and Vanadium,
 - one schedule per domain,
 - hourly schedule precision,
 - 168 schedule slots per domain,
@@ -645,7 +645,7 @@ The Kotlin implementation must validate:
 ### MVP traffic flow
 
 ```text
-Brave
+Supported browser
   ↓ DNS request
 FocusGate VpnService
   ↓
@@ -668,7 +668,7 @@ RuleEvaluator
 6. Load rules from the native repository.
 7. Report VPN status to the Compose UI.
 
-### Brave-only configuration
+### Browser allowlist configuration
 
 ```kotlin
 val tun = Builder()
@@ -677,10 +677,12 @@ val tun = Builder()
     .addDnsServer("10.10.0.2")
     .addRoute("10.10.0.2", 32)
     .addAllowedApplication("com.brave.browser")
+    .addAllowedApplication("com.android.chrome")
+    .addAllowedApplication("app.vanadium.browser")
     .establish()
 ```
 
-The Brave package identifier should be verified on the target device.
+Only installed supported-browser package identifiers should be added on the target device.
 
 ### Upstream forwarding
 
@@ -749,16 +751,16 @@ The packet-processing loop must run in Kotlin or native code.
 
 ---
 
-## 14. Brave configuration
+## 14. Browser secure DNS configuration
 
-Brave can use its own Secure DNS or DNS-over-HTTPS.
+Browsers can use their own Secure DNS or DNS-over-HTTPS.
 
 That may bypass DNS filtering.
 
 The onboarding process should display:
 
 ```text
-Disable Secure DNS in Brave or configure it to use the current provider.
+Disable Secure DNS in the filtered browser or configure it to use the current provider.
 
 Otherwise FocusGate may not see DNS requests and domain filtering may not work.
 ```
@@ -768,7 +770,7 @@ Add a diagnostics screen:
 ```text
 VPN active: Yes
 DNS interception: Working
-Brave filtering test: Passed
+Browser filtering test: Passed
 ```
 
 ---
@@ -837,7 +839,7 @@ Support clear errors for:
 - editing currently locked,
 - countdown still active,
 - countdown invalidated by device restart,
-- Brave Secure DNS bypassing the filter.
+- Browser Secure DNS bypassing the filter.
 
 Suggested error codes:
 
@@ -908,10 +910,10 @@ Test:
 
 Verify:
 
-- Brave can access allowed domains,
-- Brave cannot access blocked domains,
+- supported browsers can access allowed domains,
+- supported browsers cannot access blocked domains,
 - filtering changes after an hour boundary,
-- Messenger outside Brave continues receiving notifications,
+- Messenger outside the supported-browser allowlist continues receiving notifications,
 - killing the app UI process does not stop filtering,
 - app restart restores rules,
 - device restart restores the lock,
@@ -998,7 +1000,7 @@ Tasks:
 - implement the VPN permission flow,
 - implement the foreground service,
 - establish the TUN interface,
-- restrict the VPN to Brave,
+- restrict the VPN to supported browsers,
 - expose VPN status to the Compose UI.
 
 Deliverable:
@@ -1035,7 +1037,7 @@ Tasks:
 - handle upstream failure,
 - handle service restart,
 - add diagnostics,
-- add Brave Secure DNS instructions.
+- add browser Secure DNS instructions.
 
 Deliverable:
 
@@ -1077,7 +1079,7 @@ The MVP is complete when:
 8. The five-minute countdown cannot be shortened by changing system time.
 9. A device restart invalidates a pending unlock.
 10. Native write methods reject changes while editing is locked.
-11. Brave is filtered without affecting Messenger outside Brave.
+11. Supported browsers are filtered without affecting Messenger outside the browser allowlist.
 12. The application clearly reports when the VPN is inactive.
 13. Blocked DNS requests receive a deterministic response.
 14. Allowed DNS requests are forwarded without entering a VPN loop.
@@ -1095,7 +1097,7 @@ UI: Jetpack Compose
 Native layer: Kotlin
 Storage: Proto DataStore
 Filtering: DNS only
-Filtered application: Brave
+Filtered applications: Brave, Chrome, and Vanadium
 Schedule precision: One hour
 Schedule size: 168 slots per domain
 Blocking response: NXDOMAIN

@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dev.pawelsowa.focusgate.FocusGateGraph
 import dev.pawelsowa.focusgate.MainActivity
+import dev.pawelsowa.focusgate.domain.RuleEvaluator
 import dev.pawelsowa.focusgate.domain.model.DomainRule
 import dev.pawelsowa.focusgate.domain.model.VpnStatus
 import java.io.FileInputStream
@@ -24,6 +25,9 @@ import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
+import java.time.ZonedDateTime
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +40,7 @@ import kotlinx.coroutines.launch
 
 class FocusGateVpnService : VpnService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val ruleEvaluator = RuleEvaluator()
     private val rules = AtomicReference<List<DomainRule>>(emptyList())
     private var vpnInterface: ParcelFileDescriptor? = null
     private var packetJob: Job? = null
@@ -78,6 +83,7 @@ class FocusGateVpnService : VpnService() {
         val rulesJob = scope.launch {
             FocusGateGraph.repository.observeConfig().collectLatest { config ->
                 rules.set(config.rules)
+                updateNotification(blockedNowCount(config.rules))
             }
         }
         try {
@@ -111,12 +117,18 @@ class FocusGateVpnService : VpnService() {
             .addAddress(VPN_ADDRESS, 32)
             .addDnsServer(VPN_DNS_ADDRESS)
             .addRoute(VPN_DNS_ADDRESS, 32)
+        val browserPackages = VpnRuntime.installedBrowserPackages(packageManager)
+        if (browserPackages.isEmpty()) {
+            VpnRuntime.filteredBrowserPackages.value = emptyList()
+            VpnRuntime.failureReason.value = VpnFailureReason.NO_SUPPORTED_BROWSER_INSTALLED
+            return null
+        }
+        VpnRuntime.filteredBrowserPackages.value = browserPackages
         return try {
-            builder.addAllowedApplication(VpnRuntime.BRAVE_PACKAGE)
+            browserPackages.forEach(builder::addAllowedApplication)
             builder.establish()
         } catch (_: PackageManager.NameNotFoundException) {
-            VpnRuntime.braveInstalled.value = false
-            VpnRuntime.failureReason.value = VpnFailureReason.BRAVE_NOT_INSTALLED
+            VpnRuntime.failureReason.value = VpnFailureReason.NO_SUPPORTED_BROWSER_INSTALLED
             null
         } catch (_: IllegalArgumentException) {
             VpnRuntime.failureReason.value = VpnFailureReason.TUN_START_FAILED
@@ -133,6 +145,9 @@ class FocusGateVpnService : VpnService() {
         val buffer = ByteArray(MAX_PACKET_SIZE)
         val processor = DnsPacketProcessor(
             upstream = DatagramSocketUpstreamDnsClient(
+                protectSocket = { socket -> protect(socket) },
+            ),
+            tcpUpstream = TcpSocketUpstreamDnsClient(
                 protectSocket = { socket -> protect(socket) },
             ),
         )
@@ -173,7 +188,17 @@ class FocusGateVpnService : VpnService() {
         networkCallbackRegistered = false
     }
 
-    private fun notification(): Notification {
+    private fun updateNotification(blockedNowCount: Int) {
+        getSystemService(NotificationManager::class.java)
+            .notify(NOTIFICATION_ID, notification(blockedNowCount))
+    }
+
+    private fun blockedNowCount(rules: List<DomainRule>): Int {
+        val now = ZonedDateTime.now()
+        return rules.count { rule -> ruleEvaluator.shouldBlock(rule, now) }
+    }
+
+    private fun notification(blockedNowCount: Int = 0): Notification {
         ensureNotificationChannel()
         val contentIntent = PendingIntent.getActivity(
             this,
@@ -184,11 +209,18 @@ class FocusGateVpnService : VpnService() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
             .setContentTitle("FocusGate active")
-            .setContentText("Filtering Brave DNS requests")
+            .setContentText(notificationText(blockedNowCount))
             .setContentIntent(contentIntent)
             .setOngoing(true)
             .build()
     }
+
+    private fun notificationText(blockedNowCount: Int): String =
+        when (blockedNowCount) {
+            0 -> "No domains currently blocked"
+            1 -> "1 domain is currently blocked"
+            else -> "$blockedNowCount domains are currently blocked"
+        }
 
     private fun ensureNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -212,7 +244,7 @@ class FocusGateVpnService : VpnService() {
         private const val MAX_PACKET_SIZE = 32_767
 
         fun start(context: Context) {
-            VpnRuntime.refreshBraveInstalled(context.packageManager)
+            VpnRuntime.refreshBrowserAvailability(context.packageManager)
             VpnRuntime.failureReason.value = VpnFailureReason.NONE
             VpnRuntime.status.value = VpnStatus.STARTING
             ContextCompat.startForegroundService(
@@ -234,23 +266,72 @@ class DatagramSocketUpstreamDnsClient(
     private val server: InetAddress = InetAddress.getByName("1.1.1.1"),
     private val port: Int = 53,
     private val timeoutMs: Int = 3_000,
+    private val attempts: Int = 2,
 ) : UpstreamDnsClient {
-    override fun query(request: ByteArray): ByteArray? =
-        try {
+    override fun query(request: ByteArray): ByteArray? {
+        repeat(attempts) {
             DatagramSocket().use { socket ->
                 if (!protectSocket(socket)) return null
                 socket.soTimeout = timeoutMs
-                socket.send(DatagramPacket(request, request.size, server, port))
-                val buffer = ByteArray(MAX_DNS_RESPONSE_SIZE)
-                val response = DatagramPacket(buffer, buffer.size)
-                socket.receive(response)
-                buffer.copyOf(response.length)
+                try {
+                    socket.send(DatagramPacket(request, request.size, server, port))
+                    val buffer = ByteArray(MAX_DNS_RESPONSE_SIZE)
+                    val response = DatagramPacket(buffer, buffer.size)
+                    socket.receive(response)
+                    return buffer.copyOf(response.length)
+                } catch (_: IOException) {
+                }
+            }
+        }
+        return null
+    }
+
+    companion object {
+        private const val MAX_DNS_RESPONSE_SIZE = 4_096
+    }
+}
+
+class TcpSocketUpstreamDnsClient(
+    private val protectSocket: (Socket) -> Boolean,
+    private val server: InetAddress = InetAddress.getByName("1.1.1.1"),
+    private val port: Int = 53,
+    private val timeoutMs: Int = 3_000,
+) : UpstreamDnsClient {
+    override fun query(request: ByteArray): ByteArray? =
+        try {
+            Socket().use { socket ->
+                if (!protectSocket(socket)) return null
+                socket.soTimeout = timeoutMs
+                socket.connect(InetSocketAddress(server, port), timeoutMs)
+                val frame = ByteArray(LENGTH_PREFIX_SIZE + request.size)
+                DnsMessageParser.writeUnsignedShort(frame, 0, request.size)
+                request.copyInto(frame, LENGTH_PREFIX_SIZE)
+                socket.getOutputStream().write(frame)
+                socket.getOutputStream().flush()
+
+                val input = socket.getInputStream()
+                val lengthPrefix = input.readExact(LENGTH_PREFIX_SIZE) ?: return null
+                val responseLength = DnsMessageParser.readUnsignedShort(lengthPrefix, 0)
+                if (responseLength > MAX_DNS_RESPONSE_SIZE) return null
+                input.readExact(responseLength)
             }
         } catch (_: IOException) {
             null
         }
 
+    private fun java.io.InputStream.readExact(size: Int): ByteArray? {
+        val bytes = ByteArray(size)
+        var offset = 0
+        while (offset < size) {
+            val read = read(bytes, offset, size - offset)
+            if (read < 0) return null
+            offset += read
+        }
+        return bytes
+    }
+
     companion object {
+        private const val LENGTH_PREFIX_SIZE = 2
         private const val MAX_DNS_RESPONSE_SIZE = 4_096
     }
 }

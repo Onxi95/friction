@@ -7,9 +7,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 enum class VpnFailureReason {
     NONE,
     VPN_PERMISSION_DENIED,
-    BRAVE_NOT_INSTALLED,
+    NO_SUPPORTED_BROWSER_INSTALLED,
     NETWORK_PERMISSION_MISSING,
     TUN_START_FAILED,
+    UPSTREAM_DNS_UNAVAILABLE,
 }
 
 data class DnsDiagnostics(
@@ -22,18 +23,30 @@ data class DnsDiagnostics(
 
 object VpnRuntime {
     const val BRAVE_PACKAGE = "com.brave.browser"
+    const val CHROME_PACKAGE = "com.android.chrome"
+    const val VANADIUM_PACKAGE = "app.vanadium.browser"
+    val SUPPORTED_BROWSER_PACKAGES = listOf(
+        BRAVE_PACKAGE,
+        CHROME_PACKAGE,
+        VANADIUM_PACKAGE,
+    )
 
     val status = MutableStateFlow(VpnStatus.STOPPED)
     val failureReason = MutableStateFlow(VpnFailureReason.NONE)
-    val braveInstalled = MutableStateFlow(false)
+    val filteredBrowserPackages = MutableStateFlow(emptyList<String>())
     val dnsDiagnostics = MutableStateFlow(DnsDiagnostics())
 
-    fun refreshBraveInstalled(packageManager: PackageManager) {
-        braveInstalled.value = runCatching {
-            packageManager.getPackageInfo(BRAVE_PACKAGE, 0)
-            true
-        }.getOrDefault(false)
+    fun refreshBrowserAvailability(packageManager: PackageManager) {
+        filteredBrowserPackages.value = installedBrowserPackages(packageManager)
     }
+
+    fun installedBrowserPackages(packageManager: PackageManager): List<String> =
+        SUPPORTED_BROWSER_PACKAGES.filter { packageName ->
+            runCatching {
+                packageManager.getPackageInfo(packageName, 0)
+                true
+            }.getOrDefault(false)
+        }
 
     fun recordDnsQuery(domain: String, blocked: Boolean) {
         dnsDiagnostics.value = dnsDiagnostics.value.let { current ->

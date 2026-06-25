@@ -1,6 +1,6 @@
 # FocusGate Android
 
-Android DNS-only focus blocker for Brave.
+Android DNS-only focus blocker for Brave, Chrome, and Vanadium.
 
 ## Build
 
